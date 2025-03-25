@@ -10,7 +10,7 @@ from PIL import Image
 # Dataset path
 low_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output_downscaled"
 high_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output"
-model_save_path = "models/"
+model_save_path = "models2/"
 
 os.makedirs(model_save_path, exist_ok=True)
 
@@ -55,7 +55,7 @@ class SuperResDataset(Dataset):
 
 
 # Load Dataset
-batch_size = 16
+batch_size = 32
 dataset = SuperResDataset(low_res_dir, high_res_dir, transform_low_res, transform_high_res)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
 
@@ -88,7 +88,7 @@ class SRGenerator(nn.Module):
             nn.PReLU(),
 
             # nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
-            # nn.PixelShuffle(2),
+            # nn.PixelShsuffle(2),
             # nn.PReLU(),
 
             nn.Conv2d(64, 1, kernel_size=9, stride=1, padding=4),  # Final reconstruction
@@ -133,6 +133,30 @@ class SRDiscriminator(nn.Module):
 generator = SRGenerator()
 discriminator = SRDiscriminator()
 
+# Find the latest saved model
+generator_path = None
+discriminator_path = None
+
+if os.path.exists(model_save_path):
+    generator_files = [f for f in os.listdir(model_save_path) if f.startswith("generator_epoch_")]
+    discriminator_files = [f for f in os.listdir(model_save_path) if f.startswith("discriminator_epoch_")]
+
+    if generator_files:
+        generator_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+        generator_path = os.path.join(model_save_path, generator_files[-1])
+
+    if discriminator_files:
+        discriminator_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+        discriminator_path = os.path.join(model_save_path, discriminator_files[-1])
+
+if generator_path:
+    generator.load_state_dict(torch.load(generator_path))
+    print(f"Loaded generator weights from {generator_path}")
+
+if discriminator_path:
+    discriminator.load_state_dict(torch.load(discriminator_path))
+    print(f"Loaded discriminator weights from {discriminator_path}")
+
 # Loss Functions
 adversarial_loss = nn.BCELoss()  # For Discriminator
 content_loss = nn.MSELoss()      # For Generator
@@ -142,7 +166,12 @@ lr = 0.00001
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=lr)
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=lr)
 
-num_epochs = 50
+# Resume training from the loaded epoch, or start from 0
+start_epoch = 0
+if generator_path:
+    start_epoch = int(generator_path.split("_")[-1].split(".")[0])
+
+num_epochs = 250
 
 for epoch in range(num_epochs):
     for n, (low_res_images, high_res_images) in enumerate(train_loader):
@@ -157,7 +186,7 @@ for epoch in range(num_epochs):
 
         # Train Discriminator
         optimizer_D.zero_grad()
-        real_outputs = discriminator(low_res_images)
+        real_outputs = discriminator(high_res_images)
         fake_outputs = discriminator(high_res_fake.detach())  # Detach to avoid training G
 
         loss_real = adversarial_loss(real_outputs, real_labels)
@@ -176,12 +205,11 @@ for epoch in range(num_epochs):
         loss_G.backward()
         optimizer_G.step()
 
-        # Print loss
-        if n == batch_size - 1:
-            print(f"Epoch: {epoch + 1} | Loss D: {loss_D.item()} | Loss G: {loss_G.item()}")
+    if (epoch + 1) % 1 == 0:
+        print(f"Epoch: {epoch + 1} | Loss D: {loss_D} | Loss G: {loss_G}")
 
-    # saves model every 10 epochs and prints comparison of low res vs high res
-    if (epoch + 1) % 10 == 0:
+    # saves model every 50 epochs and prints comparison of low res vs high res
+    if (epoch + 1) % 50 == 0:
         torch.save(generator.state_dict(), os.path.join(model_save_path, f"generator_epoch_{epoch + 1}.pth"))
         torch.save(discriminator.state_dict(), os.path.join(model_save_path, f"discriminator_epoch_{epoch + 1}.pth"))
         print(f"Model saved at epoch {epoch + 1}")
@@ -198,17 +226,17 @@ for epoch in range(num_epochs):
         for i in range(5):
             # Low-resolution (Input)
             axes[0, i].imshow(denormalize(test_samples[i].squeeze(0)), cmap='gray')
-            axes[0, i].set_title("Low-Res (32x32)")
+            axes[0, i].set_title("Low-Res")
             axes[0, i].axis('off')
 
             # High-resolution (Ground Truth)
             axes[1, i].imshow(denormalize(test_high_res[i].squeeze(0)), cmap='gray')
-            axes[1, i].set_title("High-Res (64x64)")
+            axes[1, i].set_title("High-Res")
             axes[1, i].axis('off')
 
             # Super-resolved (Generated)
             axes[2, i].imshow(denormalize(super_resolved[i].squeeze(0)), cmap='gray')
-            axes[2, i].set_title("Super-Res (Generated)")
+            axes[2, i].set_title("Generated")
             axes[2, i].axis('off')
 
         plt.show()

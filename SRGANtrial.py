@@ -2,15 +2,16 @@ import os
 import torch
 from torch import nn
 import torchvision.transforms as transforms
-import torchvision
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
+from skimage.metrics import structural_similarity as ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
 from PIL import Image
 
 # Dataset path
 low_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output_downscaled"
 high_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output"
-model_save_path = "models2/"
+model_save_path = "models5/"
 
 os.makedirs(model_save_path, exist_ok=True)
 
@@ -88,7 +89,7 @@ class SRGenerator(nn.Module):
             nn.PReLU(),
 
             # nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
-            # nn.PixelShsuffle(2),
+            # nn.PixelShuffle(2),
             # nn.PReLU(),
 
             nn.Conv2d(64, 1, kernel_size=9, stride=1, padding=4),  # Final reconstruction
@@ -166,6 +167,9 @@ lr = 0.00001
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=lr)
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=lr)
 
+ssim_scores = []
+psnr_scores = []
+
 # Resume training from the loaded epoch, or start from 0
 start_epoch = 0
 if generator_path:
@@ -174,6 +178,8 @@ if generator_path:
 num_epochs = 250
 
 for epoch in range(num_epochs):
+    total_ssim, total_psnr, num_batches = 0, 0, 0
+
     for n, (low_res_images, high_res_images) in enumerate(train_loader):
         batch_size_actual = low_res_images.size(0)
 
@@ -205,10 +211,24 @@ for epoch in range(num_epochs):
         loss_G.backward()
         optimizer_G.step()
 
-    if (epoch + 1) % 1 == 0:
-        print(f"Epoch: {epoch + 1} | Loss D: {loss_D} | Loss G: {loss_G}")
+        for i in range(batch_size_actual):
+            real_img = high_res_images[i].squeeze(0).detach().numpy()
+            fake_img = high_res_fake[i].squeeze(0).detach().numpy()
 
-    # saves model every 50 epochs and prints comparison of low res vs high res
+            total_ssim += ssim(real_img, fake_img, data_range=1.0)
+            total_psnr += psnr(real_img, fake_img, data_range=1.0)
+            num_batches += 1
+
+            # Store SSIM & PSNR scores
+        avg_ssim = total_ssim / num_batches
+        avg_psnr = total_psnr / num_batches
+        ssim_scores.append(avg_ssim)
+        psnr_scores.append(avg_psnr)
+
+    print(
+        f"Epoch {epoch + 1}: Loss D: {loss_D:.4f}, Loss G: {loss_G:.4f}, SSIM: {avg_ssim:.4f}, PSNR: {avg_psnr:.4f}")
+
+    # saves model every 50 epochs and prints comparison of low res vs high-res
     if (epoch + 1) % 50 == 0:
         torch.save(generator.state_dict(), os.path.join(model_save_path, f"generator_epoch_{epoch + 1}.pth"))
         torch.save(discriminator.state_dict(), os.path.join(model_save_path, f"discriminator_epoch_{epoch + 1}.pth"))
@@ -238,5 +258,13 @@ for epoch in range(num_epochs):
             axes[2, i].imshow(denormalize(super_resolved[i].squeeze(0)), cmap='gray')
             axes[2, i].set_title("Generated")
             axes[2, i].axis('off')
-
         plt.show()
+
+plt.figure(figsize=(10, 5))
+plt.plot(range(1, num_epochs + 1), ssim_scores, label="SSIM", color="blue")
+plt.plot(range(1, num_epochs + 1), psnr_scores, label="PSNR", color="red")
+plt.xlabel("Epoch")
+plt.ylabel("Score")
+plt.title("SSIM & PSNR Over Training")
+plt.legend()
+plt.show()

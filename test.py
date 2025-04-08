@@ -1,7 +1,7 @@
 import torch
 import matplotlib.pyplot as plt
 from transform_data import get_dataloader
-from model import SRGenerator
+from model import Generator
 
 # Directories
 low_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output_downscaled"
@@ -11,7 +11,7 @@ model_save_path = "models4/"
 # Load DataLoader
 test_loader = get_dataloader(low_res_dir, high_res_dir, batch_size=5)
 
-generator = SRGenerator()
+generator = Generator(2)
 generator.load_state_dict(torch.load("models4/generator_epoch_150.pth"))
 generator.eval()
 

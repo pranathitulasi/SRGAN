@@ -31,20 +31,20 @@ class SuperResDataset(Dataset):
 
 # Define transformations
 transform_low_res = transforms.Compose([
-    transforms.Resize((32, 32)),
+    transforms.Resize((110, 110)),
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 transform_high_res = transforms.Compose([
-    transforms.Resize((64, 64)),
+    transforms.Resize((220, 220)),
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 
-def get_dataloader(low_res_dir, high_res_dir, batch_size=32):
+def get_dataloader(low_res_dir, high_res_dir, batch_size=16):
     dataset = SuperResDataset(low_res_dir, high_res_dir, transform_low_res, transform_high_res)
     return DataLoader(dataset, batch_size=batch_size, shuffle=True)

@@ -1,4 +1,5 @@
 import os
+#import torch_directml
 import torch
 from torch import nn
 import torchvision.transforms as transforms
@@ -15,15 +16,18 @@ model_save_path = "models5/"
 
 os.makedirs(model_save_path, exist_ok=True)
 
+# device = torch_directml.device()
+# print("Using device:", device)
+
 transform_low_res = transforms.Compose([
-    transforms.Resize((32, 32)),
+    transforms.Resize((128, 128)),
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 transform_high_res = transforms.Compose([
-    transforms.Resize((64, 64)),      # Downscale to low resolution
+    transforms.Resize((256, 256)),      # Downscale to low resolution
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))
@@ -163,19 +167,22 @@ adversarial_loss = nn.BCELoss()  # For Discriminator
 content_loss = nn.MSELoss()      # For Generator
 
 # Optimizers
-lr = 0.00001
-optimizer_G = torch.optim.Adam(generator.parameters(), lr=lr)
-optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=lr)
+#lr = 0.00001
+optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.000015)
+optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.000005)
 
 ssim_scores = []
 psnr_scores = []
+avg_ssim_values = []
+avg_psnr_values = []
 
 # Resume training from the loaded epoch, or start from 0
 start_epoch = 0
 if generator_path:
     start_epoch = int(generator_path.split("_")[-1].split(".")[0])
 
-num_epochs = 250
+num_epochs = 50
+
 
 for epoch in range(num_epochs):
     total_ssim, total_psnr, num_batches = 0, 0, 0
@@ -219,14 +226,13 @@ for epoch in range(num_epochs):
             total_psnr += psnr(real_img, fake_img, data_range=1.0)
             num_batches += 1
 
-            # Store SSIM & PSNR scores
-        avg_ssim = total_ssim / num_batches
-        avg_psnr = total_psnr / num_batches
-        ssim_scores.append(avg_ssim)
-        psnr_scores.append(avg_psnr)
+        # Store SSIM & PSNR scores
+    avg_ssim = total_ssim / num_batches
+    avg_psnr = total_psnr / num_batches
+    avg_ssim_values.append(avg_ssim)
+    avg_psnr_values.append(avg_psnr)
 
-    print(
-        f"Epoch {epoch + 1}: Loss D: {loss_D:.4f}, Loss G: {loss_G:.4f}, SSIM: {avg_ssim:.4f}, PSNR: {avg_psnr:.4f}")
+    print(f"Epoch {epoch + 1}: Loss D: {loss_D:.4f}, Loss G: {loss_G :.4f}, SSIM: {avg_ssim:.4f}, PSNR: {avg_psnr:.4f}")
 
     # saves model every 50 epochs and prints comparison of low res vs high-res
     if (epoch + 1) % 50 == 0:
@@ -261,10 +267,22 @@ for epoch in range(num_epochs):
         plt.show()
 
 plt.figure(figsize=(10, 5))
-plt.plot(range(1, num_epochs + 1), ssim_scores, label="SSIM", color="blue")
-plt.plot(range(1, num_epochs + 1), psnr_scores, label="PSNR", color="red")
+
+# Plot SSIM
+plt.subplot(1, 2, 1)  # (rows, columns, index)
+plt.plot(range(1, num_epochs + 1), avg_ssim_values, label="SSIM", color="blue")
 plt.xlabel("Epoch")
-plt.ylabel("Score")
-plt.title("SSIM & PSNR Over Training")
+plt.ylabel("SSIM Score")
+plt.title("SSIM Over Training")
 plt.legend()
+
+# Plot PSNR
+plt.subplot(1, 2, 2)  # (rows, columns, index)
+plt.plot(range(1, num_epochs + 1), avg_psnr_values, label="PSNR", color="red")
+plt.xlabel("Epoch")
+plt.ylabel("PSNR Score")
+plt.title("PSNR Over Training")
+plt.legend()
+
+plt.tight_layout()  # Adjusts the subplots to avoid overlap
 plt.show()

@@ -13,7 +13,7 @@ model_save_path = "models6/"
 outputs_save = "outputs"
 os.makedirs(model_save_path, exist_ok=True)
 
-batch_size = 16
+batch_size = 32
 num_epochs = 250
 
 

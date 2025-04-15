@@ -9,15 +9,15 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from PIL import Image
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 # Dataset path
 low_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output_downscaled"
 high_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output"
 model_save_path = "models5/"
 
 os.makedirs(model_save_path, exist_ok=True)
-
-# device = torch_directml.device()
-# print("Using device:", device)
 
 transform_low_res = transforms.Compose([
     transforms.Resize((128, 128)),

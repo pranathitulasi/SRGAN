@@ -11,7 +11,7 @@ model_save_path = "models4/"
 # Load DataLoader
 test_loader = get_dataloader(low_res_dir, high_res_dir, batch_size=5)
 
-generator = Generator(2)
+generator = Generator()
 generator.load_state_dict(torch.load("models4/generator_epoch_150.pth"))
 generator.eval()
 

@@ -7,58 +7,70 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from model import Generator, Discriminator
 
-low_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output_downscaled"
-high_res_dir = r"C:\Users\pt5898p\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output"
-model_save_path = "models6/"
-outputs_save = "outputs"
+low_res_dir = r"C:\Users\ptula\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output_downscaled"
+high_res_dir = r"C:\Users\ptula\OneDrive - University of Greenwich\Documents\Year3\COMP1682_FYP\gitsrgan\Dataset_modified\output"
+model_save_path = "4x_models7/"
 os.makedirs(model_save_path, exist_ok=True)
 
-batch_size = 32
+batch_size = 16
 num_epochs = 250
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def load_model(model, model_save_path, model_name):
-    model_path = None
+generator_path = None
+discriminator_path = None
+
+def load_model(model_save_path):
+    generator_path = None
+    discriminator_path = None
+
     if os.path.exists(model_save_path):
-        model_files = [f for f in os.listdir(model_save_path) if f.startswith(model_name)]
-        if model_files:
-            model_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
-            model_path = os.path.join(model_save_path, model_files[-1])
+        generator_files = [f for f in os.listdir(model_save_path) if f.startswith("generator_epoch_")]
+        discriminator_files = [f for f in os.listdir(model_save_path) if f.startswith("discriminator_epoch_")]
 
-    if model_path:
-        model.load_state_dict(torch.load(model_path))
-        print(f"Loaded {model_name} weights from {model_path}")
-    else:
-        pass
+        if generator_files:
+            generator_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+            generator_path = os.path.join(model_save_path, generator_files[-1])
 
-    return model
+        if discriminator_files:
+            discriminator_files.sort(key=lambda x: int(x.split("_")[-1].split(".")[0]))
+            discriminator_path = os.path.join(model_save_path, discriminator_files[-1])
+
+    if generator_path:
+        print(f"Loaded generator weights from {generator_path}")
+
+    if discriminator_path:
+        print(f"Loaded discriminator weights from {discriminator_path}")
+
+    return generator_path, discriminator_path
 
 
 def train():
     train_loader = get_dataloader(low_res_dir, high_res_dir, batch_size)
     #print(f"Training loader size: {len(train_loader)}")
 
-    generator = Generator(scale_factor=2)
+    generator = Generator()
     discriminator = Discriminator()
 
     # loading latest weights
-    generator = load_model(generator, model_save_path, "generator")
-    discriminator = load_model(discriminator, model_save_path, "discriminator")
+    generator_path, discriminator_path = load_model(model_save_path)
 
-    # Loss functions
+    if generator_path:
+        generator.load_state_dict(torch.load(generator_path, map_location=torch.device('cpu')))
+    if discriminator_path:
+        discriminator.load_state_dict(torch.load(discriminator_path, map_location=torch.device('cpu')))
+
     adversarial_loss = nn.BCELoss()
     content_loss = nn.MSELoss()
 
-    # Optimizers
-    optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.000015)
-    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.000005)
+    optimizer_G = torch.optim.Adam(generator.parameters(), lr=0.00002)
+    optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=0.00001)
 
     ssim_scores = []
     psnr_scores = []
     avg_ssim_values = []
     avg_psnr_values = []
 
-    # Training loop
     for epoch in range(num_epochs):
         total_ssim, total_psnr, num_batches = 0, 0, 0
 
@@ -101,7 +113,7 @@ def train():
                 total_psnr += psnr(real_img, fake_img, data_range=1.0)
                 num_batches += 1
 
-        # Store SSIM & PSNR scores
+        # store SSIM & PSNR scores
         avg_ssim = total_ssim / num_batches
         avg_psnr = total_psnr / num_batches
         avg_ssim_values.append(avg_ssim)
@@ -109,13 +121,12 @@ def train():
 
         print(f"Epoch {epoch + 1}: Loss D: {loss_D:.4f}, Loss G: {loss_G :.4f}, SSIM: {avg_ssim:.4f}, PSNR: {avg_psnr:.4f}")
 
-        # Save models every 50 epochs
+        # saves models every 50 epochs
         if (epoch + 1) % 50 == 0:
             torch.save(generator.state_dict(), os.path.join(model_save_path, f"generator_epoch_{epoch + 1}.pth"))
             torch.save(discriminator.state_dict(), os.path.join(model_save_path, f"discriminator_epoch_{epoch + 1}.pth"))
             print(f"Model saved at epoch {epoch + 1}")
 
-            # Display output images
             test_samples, test_high_res = next(iter(train_loader))
             super_resolved = generator(test_samples).detach()
 
@@ -125,36 +136,32 @@ def train():
             fig, axes = plt.subplots(3, 5, figsize=(10, 6))
 
             for i in range(5):
-                # Low-resolution (Input)
                 axes[0, i].imshow(denormalize(test_samples[i].squeeze(0)), cmap='gray')
                 axes[0, i].set_title("Low-Res")
                 axes[0, i].axis('off')
 
-                # High-resolution (Ground Truth)
                 axes[1, i].imshow(denormalize(test_high_res[i].squeeze(0)), cmap='gray')
                 axes[1, i].set_title("High-Res")
                 axes[1, i].axis('off')
 
-                # Super-resolved (Generated)
                 axes[2, i].imshow(denormalize(super_resolved[i].squeeze(0)), cmap='gray')
                 axes[2, i].set_title("Generated")
                 axes[2, i].axis('off')
 
-            plt.savefig(os.path.join(outputs_save, f"output{i + 1}.png"))
-            plt.close()
+            plt.show()
 
     plt.figure(figsize=(10, 5))
 
-    # Plot SSIM
-    plt.subplot(1, 2, 1)  # (rows, columns, index)
+    # SSIM plot
+    plt.subplot(1, 2, 1)
     plt.plot(range(1, num_epochs + 1), avg_ssim_values, label="SSIM", color="blue")
     plt.xlabel("Epoch")
     plt.ylabel("SSIM Score")
     plt.title("SSIM Over Training")
     plt.legend()
 
-    # Plot PSNR
-    plt.subplot(1, 2, 2)  # (rows, columns, index)
+    # PSNR plot
+    plt.subplot(1, 2, 2)
     plt.plot(range(1, num_epochs + 1), avg_psnr_values, label="PSNR", color="red")
     plt.xlabel("Epoch")
     plt.ylabel("PSNR Score")
@@ -162,8 +169,7 @@ def train():
     plt.legend()
 
     plt.tight_layout()
-    plt.savefig(os.path.join(outputs_save, "plot.png"))
-    plt.close()
+    plt.show()
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Super Simulator")
-        self.setGeometry(100, 100, 1500, 1000)
+        self.setGeometry(100, 100, 1200, 900)
 
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)

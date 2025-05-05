@@ -29,7 +29,6 @@ class SuperResDataset(Dataset):
         return low_res_image, high_res_image
 
 
-# Define transformations
 transform_low_res = transforms.Compose([
     transforms.Resize((110, 110)),
     transforms.ToTensor(),
@@ -38,7 +37,7 @@ transform_low_res = transforms.Compose([
 ])
 
 transform_high_res = transforms.Compose([
-    transforms.Resize((220, 220)),
+    transforms.Resize((440, 440)),
     transforms.ToTensor(),
     transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))

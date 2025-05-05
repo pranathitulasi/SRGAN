@@ -6,22 +6,24 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
 
         self.upscale = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=9, stride=1, padding=4),  # Initial feature extraction
+            # feature extraction
+            nn.Conv2d(1, 64, kernel_size=9, stride=1, padding=4),
             nn.PReLU(),
             nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
             nn.PReLU(),
 
-            # Up-sampling Block (Pixel Shuffle)
+            # upsampling block twice for 4x upscaling
             nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
-            nn.PixelShuffle(2),     # performs 2x up-scaling
+            nn.PixelShuffle(2),
             nn.PReLU(),
 
             nn.Conv2d(64, 256, kernel_size=3, stride=1, padding=1),
             nn.PixelShuffle(2),
             nn.PReLU(),
 
-            nn.Conv2d(64, 1, kernel_size=9, stride=1, padding=4),  # Final reconstruction
+            # outputs final SR image
+            nn.Conv2d(64, 1, kernel_size=9, stride=1, padding=4),
             nn.Tanh()
         )
 
@@ -49,7 +51,7 @@ class Discriminator(nn.Module):
             nn.BatchNorm2d(512),
             nn.LeakyReLU(0.2),
 
-            nn.AdaptiveAvgPool2d(1),  # Global average pooling
+            nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
             nn.Linear(512, 1),
             nn.Sigmoid()

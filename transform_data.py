@@ -1,9 +1,11 @@
 import os
+import torch
 from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 from PIL import Image
 
 
+# class to load and transform data
 class SuperResDataset(Dataset):
     def __init__(self, low_res_dir, high_res_dir, transform_lr, transform_hr):
         self.low_res_dir = low_res_dir
@@ -16,34 +18,51 @@ class SuperResDataset(Dataset):
     def __len__(self):
         return min(len(self.low_res_files), len(self.high_res_files))
 
+    # loads and returns pairs of LR and HR images
     def __getitem__(self, index):
         low_res_path = os.path.join(self.low_res_dir, self.low_res_files[index])
         high_res_path = os.path.join(self.high_res_dir, self.high_res_files[index])
 
+        # opens and converts images to grayscale
         low_res_image = Image.open(low_res_path).convert("L")
         high_res_image = Image.open(high_res_path).convert("L")
 
+        # performs the specified transformations on the images
         low_res_image = self.transform_lr(low_res_image)
         high_res_image = self.transform_hr(high_res_image)
 
         return low_res_image, high_res_image
 
 
+# defines transformations
 transform_low_res = transforms.Compose([
     transforms.Resize((110, 110)),
     transforms.ToTensor(),
-    transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 transform_high_res = transforms.Compose([
     transforms.Resize((440, 440)),
     transforms.ToTensor(),
-    transforms.Grayscale(),
     transforms.Normalize((0.5,), (0.5,))
 ])
 
 
 def get_dataloader(low_res_dir, high_res_dir, batch_size=16):
     dataset = SuperResDataset(low_res_dir, high_res_dir, transform_low_res, transform_high_res)
-    return DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+    # splits into train and val sets (80-20)
+    total_size = len(dataset)
+    train_size = int(0.8 * total_size)
+    val_size = total_size - train_size
+
+    # set seed for reproducibility
+    torch.manual_seed(42)
+
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+    # train set is shuffled for randomisation while val set isn't, to get the same images for testing
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+
+    return train_loader, val_loader
